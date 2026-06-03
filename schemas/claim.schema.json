@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Kportussy Claim Package",
+  "type": "object",
+  "required": ["subject", "claim", "evidence"],
+  "properties": {
+    "subject": {
+      "type": "object",
+      "required": ["type", "id", "name"],
+      "properties": {
+        "type": {"enum": ["human", "agent", "tool", "model", "memory", "project", "artifact", "repository", "autonomous_cycle", "rag_source", "dashboard_component", "service", "benchmark"]},
+        "id": {"type": "string"},
+        "name": {"type": "string"},
+        "namespace": {"type": "string"}
+      }
+    },
+    "claim": {
+      "type": "object",
+      "required": ["type", "domain", "statement"],
+      "properties": {
+        "type": {"enum": ["capability", "quality", "performance", "compliance", "provenance", "identity", "release_readiness", "novelty"]},
+        "domain": {"type": "string"},
+        "statement": {"type": "string"},
+        "sensitivity": {"enum": ["public", "internal", "restricted", "sealed"]}
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type", "relation", "summary"],
+        "properties": {
+          "type": {"type": "string"},
+          "relation": {"enum": ["supports", "contradicts", "contextualizes", "invalidates", "supersedes"]},
+          "summary": {"type": "string"},
+          "source_ref": {"type": "string"},
+          "content_hash": {"type": "string"}
+        }
+      }
+    }
+  }
+}

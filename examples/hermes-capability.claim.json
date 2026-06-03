@@ -1,0 +1,28 @@
+{
+  "subject": {
+    "type": "agent",
+    "id": "hermes",
+    "name": "Hermes Agent",
+    "namespace": "ussyverse"
+  },
+  "claim": {
+    "type": "capability",
+    "domain": "repo-architecture-review",
+    "statement": "Hermes can produce useful repository architecture reviews with evidence-backed findings and Ussyverse integration recommendations.",
+    "sensitivity": "internal"
+  },
+  "evidence": [
+    {
+      "type": "transcript_summary",
+      "relation": "supports",
+      "summary": "Parallel subagent review of K-Port produced architecture, security, and integration findings.",
+      "source_ref": "session:2026-06-02:k-port-review"
+    },
+    {
+      "type": "human_review",
+      "relation": "contextualizes",
+      "summary": "Requires future benchmark/rubric validation before strong trust state.",
+      "source_ref": "manual:pending"
+    }
+  ]
+}
