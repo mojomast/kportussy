@@ -11,4 +11,5 @@ __pycache__/
 .pytest_cache/
 dist/
 build/
+*.tsbuildinfo
 .DS_Store
