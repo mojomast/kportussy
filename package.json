@@ -9,7 +9,12 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "test": "vitest run",
-    "lint:data": "node scripts/validate-data.mjs"
+    "lint:data": "node scripts/validate-data.mjs",
+    "dev:api": "node server/index.mjs",
+    "dev:all": "node scripts/dev-all.mjs",
+    "api": "node server/index.mjs",
+    "seed": "node server/seed.mjs",
+    "smoke:api": "node scripts/smoke-api.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",

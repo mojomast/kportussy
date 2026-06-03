@@ -1,5 +1,7 @@
 # generated/runtime artifacts
 artifacts/
+data/*.json
+!data/.gitkeep
 *.db
 *.sqlite
 *.sqlite3

@@ -27,6 +27,17 @@ export function reviewQueue(claims: Claim[]): Claim[] {
   return claims.filter((claim) => ['submitted', 'under_review', 'disputed'].includes(claim.status) || claim.risk === 'high');
 }
 
+export function dashboardMetrics(claims: Claim[]) {
+  return {
+    averageTrustScore: averageTrustScore(claims),
+    evidenceCount: evidenceCount(claims),
+    verificationCoverage: verificationCoverage(claims),
+    privacyRiskCount: privacyRiskCount(claims),
+    statusCounts: statusCounts(claims),
+    reviewQueueIds: reviewQueue(claims).map((claim) => claim.id)
+  };
+}
+
 export function antiSlopGate(claim: Claim): { pass: boolean; reasons: string[] } {
   const reasons: string[] = [];
   if (claim.evidence.length === 0) reasons.push('no evidence');

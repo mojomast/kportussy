@@ -68,3 +68,42 @@ export interface RoadmapMilestone {
   status: 'planned' | 'in_progress' | 'blocked' | 'done';
   acceptance: string;
 }
+
+export interface AuditEvent {
+  id: string;
+  type: string;
+  actorId?: string;
+  occurredAt: string;
+  subjectRefs: Record<string, unknown>;
+  payload: Record<string, unknown>;
+  previousHash?: string;
+  eventHash?: string;
+}
+
+export interface DashboardMetrics {
+  averageTrustScore: number;
+  evidenceCount: number;
+  verificationCoverage: number;
+  privacyRiskCount: number;
+  statusCounts: Record<string, number>;
+  reviewQueueIds: string[];
+}
+
+export interface DashboardPayload {
+  mode: 'live' | 'mock';
+  claims: Claim[];
+  roadmap: RoadmapMilestone[];
+  metrics: DashboardMetrics;
+  events: AuditEvent[];
+  generatedAt: string;
+}
+
+export interface HealthPayload {
+  status: 'ok' | 'degraded' | 'down';
+  service: string;
+  version: string;
+  database: string;
+  claims: number;
+  events: number;
+  now: string;
+}

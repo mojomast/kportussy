@@ -6,17 +6,38 @@ The dashboard is a fast React/Vite operator surface for Kportussy's evidence-to-
 
 ```bash
 npm install
+npm run seed
+npm run dev:api
+# in another terminal
 npm run dev
 ```
 
-Default dev URL: <http://127.0.0.1:5179>
+Default URLs:
+
+- Dashboard: <http://127.0.0.1:5179>
+- API: <http://127.0.0.1:8787/api/health>
+
+For one-command local development:
+
+```bash
+npm run dev:all
+```
+
+For Tailscale access, bind the web server to the Tailscale IP and keep the API local behind Vite's `/api` proxy:
+
+```bash
+KPORTUSSY_API_HOST=127.0.0.1 KPORTUSSY_API_PORT=8787 npm run api
+npm run dev -- --host <tailscale-ip> --port 5179
+```
 
 ## Build and test
 
 ```bash
+npm run seed
 npm run lint:data
-npm test
+npm test -- --run
 npm run build
+npm run smoke:api
 ```
 
 ## Panels
