@@ -98,14 +98,26 @@ README.md                 Project overview
 docs/SPEC.md              Main implementation-grade specification
 docs/ROADMAP.md           30/60/90 day roadmap and milestones
 docs/ARCHITECTURE.md      Bounded contexts and integration architecture
+docs/DASHBOARD.md         Local dashboard/API/CLI operating guide
 docs/EVALUATION.md        Benchmarks, anti-slop gates, acceptance criteria
 docs/PRIVACY.md           Privacy, access control, retention, redaction
 schemas/claim.schema.json Draft JSON schema for claims
 examples/                 Example claim packages
+server/                   Tested JSON persistence, HTTP API, and CLI MVP slice
+src/                      React dashboard consuming the live API with mock fallback
 ```
 
-## Status
+## MVP status
 
-Current status: **specification seed / pre-MVP**.
+Current status: **tested local MVP slice**.
 
-The first implementation milestone is a local service/API capable of creating claims, linking evidence, recording manual/automated verification, computing simple trust projections, and emitting audit events.
+The repository now includes a JSON-file persistence layer, HTTP API, dashboard fetch adapter, and CLI capable of creating claims, linking evidence, recording manual/automated verification, computing simple trust projections, and emitting hash-chained audit events. Runtime databases live under `data/*.json` and are ignored so generated artifacts are not committed.
+
+Quick checks:
+
+```bash
+npm test -- --run
+npm run lint:data
+npm run build
+KPORTUSSY_DB_PATH=/tmp/kportussy-demo.json npm run kportussy -- health
+```

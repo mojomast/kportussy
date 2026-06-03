@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "description": "Kportussy dashboard for evidence-backed Ussyverse trust signals.",
+  "bin": {
+    "kportussy": "server/cli.mjs"
+  },
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc -b && vite build",
@@ -13,6 +16,7 @@
     "dev:api": "node server/index.mjs",
     "dev:all": "node scripts/dev-all.mjs",
     "api": "node server/index.mjs",
+    "kportussy": "node server/cli.mjs",
     "seed": "node server/seed.mjs",
     "smoke:api": "node scripts/smoke-api.mjs"
   },
