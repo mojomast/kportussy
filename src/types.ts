@@ -21,6 +21,8 @@ export interface EvidenceItem {
 }
 
 export interface Verification {
+  evidenceIds?: string[];
+  createdAt?: string;
   id: string;
   method: string;
   verifier: string;
@@ -45,6 +47,11 @@ export interface TrustSignal {
 }
 
 export interface Claim {
+  benchmarkSpec?: Record<string, unknown>;
+  gates?: Record<'verified' | 'partially_verified', {pass: boolean; reasons: string[]; policyVersion: string}>;
+  allowedTransitions?: ClaimStatus[];
+  legacyStatusWarning?: boolean;
+  benchmarks?: {evidenceId: string; valid: boolean; pass: boolean; reasons: string[]; sha256?: string}[];
   id: string;
   subject: Subject;
   domain: string;
@@ -90,6 +97,7 @@ export interface DashboardMetrics {
 }
 
 export interface DashboardPayload {
+  audit?: {valid: boolean; eventCount: number; head: string | null; limitation: string};
   mode: 'live' | 'mock';
   claims: Claim[];
   roadmap: RoadmapMilestone[];

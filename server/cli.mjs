@@ -18,6 +18,7 @@ Commands:
   add-verification <claim-id> '<json>'
   set-status <claim-id> <status> [actor-id]
   recompute-trust <claim-id> [actor-id]
+  verification-gate <claim-id> [verified|partially_verified]
   events [limit]
 
 The CLI writes to KPORTUSSY_DB_PATH when set, otherwise data/kportussy-live.json.
@@ -74,6 +75,11 @@ export async function runCli(argv = process.argv.slice(2), store = createStore()
     case 'recompute-trust':
       print(store.recomputeTrust(args[0], args[1]));
       return 0;
+    case 'verification-gate': {
+      const gate = store.verificationGate(args[0], args[1]);
+      print(gate);
+      return gate.pass ? 0 : 2;
+    }
     case 'events':
       print({ events: store.events(Number(args[0] || 100)) });
       return 0;

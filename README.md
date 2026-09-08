@@ -104,12 +104,18 @@ docs/PRIVACY.md           Privacy, access control, retention, redaction
 schemas/claim.schema.json Draft JSON schema for claims
 examples/                 Example claim packages
 server/                   Tested JSON persistence, HTTP API, and CLI MVP slice
-src/                      React dashboard consuming the live API with mock fallback
+src/                      Local review workbench consuming authoritative API gates
 ```
 
 ## MVP status
 
-Current status: **tested local MVP slice**.
+Current status: **usable local evidence-to-trust MVP, not production authority**.
+
+Run `npm run build` then `npm start` and open http://127.0.0.1:8787. The workbench supports scoped claim creation, evidence/benchmark receipt linkage, explicit evidence-bound review, server gate reasons, lifecycle changes, dispute/revocation and detailed audit visibility. No placeholder evidence or mock fallback is used. See [the operating guide](docs/DASHBOARD.md) for the complete workflow, storage boundaries and required real-data approvals. Run `npm run demo` for the isolated production-HTTP plus CLI end-to-end demonstration.
+
+Performance eligibility now validates baseline-bound, dataset-bound benchmark receipts with recomputed means, explicit metric direction, sample-size requirements and provenance. Below-baseline receipts remain blocking evidence even after accepted review. See [Benchmark receipts v1](docs/BENCHMARK_RECEIPTS.md) and run `node scripts/benchmark-receipt-demo.mjs` for the isolated CLI demonstration. This does not authorize real-data adoption.
+
+The store now enforces evidence-bound verification and bounded lifecycle transitions: a rejected review cannot verify a claim, accepted reviews must name the supporting evidence they cover, and later adverse/unreviewed evidence disputes prior approval. See [Evidence-bound review v1](docs/EVIDENCE_BOUND_REVIEW.md) for the policy, compatibility limits, CLI gate command, and reproducible local example (`node scripts/evidence-review-demo.mjs`). This is not yet a production promotion authority.
 
 The repository now includes a JSON-file persistence layer, HTTP API, dashboard fetch adapter, and CLI capable of creating claims, linking evidence, recording manual/automated verification, computing simple trust projections, and emitting hash-chained audit events. Runtime databases live under `data/*.json` and are ignored so generated artifacts are not committed.
 

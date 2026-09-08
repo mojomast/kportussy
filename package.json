@@ -10,6 +10,8 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc -b && vite build",
+    "start": "node server/index.mjs",
+    "demo": "node scripts/local-mvp-demo.mjs",
     "preview": "vite preview --host 127.0.0.1",
     "test": "vitest run",
     "lint:data": "node scripts/validate-data.mjs",

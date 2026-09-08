@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api, mockDashboardPayload } from './api';
+import { api } from './api';
 import type { DashboardPayload, HealthPayload } from './types';
 
 export function useDashboardData(refreshMs = 5000) {
-  const [payload, setPayload] = useState<DashboardPayload>(() => mockDashboardPayload());
+  const [payload, setPayload] = useState<DashboardPayload>({mode:'live',claims:[],roadmap:[],events:[],generatedAt:'',metrics:{averageTrustScore:0,evidenceCount:0,verificationCoverage:0,privacyRiskCount:0,statusCounts:{},reviewQueueIds:[]}});
   const [health, setHealth] = useState<HealthPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -19,7 +19,7 @@ export function useDashboardData(refreshMs = 5000) {
       setLastUpdatedAt(new Date().toISOString());
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
-      setPayload((current) => current.mode === 'mock' ? current : mockDashboardPayload());
+      setHealth(null); // Preserve clearly marked stale data; never substitute demo claims.
     } finally {
       setLoading(false);
     }

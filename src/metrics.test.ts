@@ -22,6 +22,6 @@ describe('kportussy dashboard metrics', () => {
     expect(performanceClaim).toBeDefined();
     const gate = antiSlopGate(performanceClaim!);
     expect(gate.pass).toBe(false);
-    expect(gate.reasons.join(' ')).toContain('benchmark');
+    expect(gate.reasons).toEqual(['server_policy_unavailable']);
   });
 });

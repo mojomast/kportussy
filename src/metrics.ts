@@ -39,11 +39,5 @@ export function dashboardMetrics(claims: Claim[]) {
 }
 
 export function antiSlopGate(claim: Claim): { pass: boolean; reasons: string[] } {
-  const reasons: string[] = [];
-  if (claim.evidence.length === 0) reasons.push('no evidence');
-  if (claim.verifications.length === 0) reasons.push('no verification');
-  if (claim.type === 'performance' && claim.trust.components.benchmarkQuality < 0.5) reasons.push('benchmark quality below threshold');
-  if (claim.risk === 'high' && claim.trust.components.governanceStatus < 0.7) reasons.push('high-risk claim lacks governance clearance');
-  if (claim.trust.state === 'disputed' || claim.trust.state === 'revoked') reasons.push(`trust state is ${claim.trust.state}`);
-  return { pass: reasons.length === 0, reasons };
+  return claim.gates?.verified ?? {pass:false,reasons:['server_policy_unavailable']};
 }

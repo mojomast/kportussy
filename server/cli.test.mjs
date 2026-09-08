@@ -48,8 +48,10 @@ describe('Kportussy CLI', () => {
         actorId: 'vitest'
       })], store);
       const claimId = created.body.id;
-      await capture(['add-evidence', claimId, JSON.stringify({ summary: 'CLI test evidence', relation: 'supports', sensitivity: 'public', actorId: 'vitest' })], store);
-      await capture(['add-verification', claimId, JSON.stringify({ method: 'unit-test', decision: 'accepted', confidence: 'high', rationale: 'round trip passed', actorId: 'vitest' })], store);
+      await capture(['add-evidence', claimId, JSON.stringify({ id: 'cli-evidence', summary: 'CLI test evidence', relation: 'supports', sensitivity: 'public', actorId: 'vitest' })], store);
+      expect((await capture(['verification-gate', claimId], store)).code).toBe(2);
+      await capture(['add-verification', claimId, JSON.stringify({ method: 'unit-test', decision: 'accepted', confidence: 'high', rationale: 'round trip passed', evidenceIds: ['cli-evidence'], actorId: 'vitest' })], store);
+      expect((await capture(['verification-gate', claimId], store)).code).toBe(0);
       const trusted = await capture(['recompute-trust', claimId, 'vitest'], store);
       expect(trusted.body.trust.score).toBeGreaterThan(0.25);
       const events = await capture(['events', '10'], store);

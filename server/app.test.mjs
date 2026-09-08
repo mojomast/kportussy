@@ -40,8 +40,8 @@ describe('live Kportussy API', () => {
       const created = await req(app, '/claims', { method: 'POST', body: JSON.stringify({ subject: { id: 'tool-x', name: 'Tool X', type: 'tool', namespace: 'test' }, domain: 'tool-novelty', statement: 'Tool X is useful when evidence says so.', trustApplication: 'test routing' }) });
       expect(created.res.status).toBe(201);
       const claimId = created.body.id;
-      await req(app, `/claims/${claimId}/evidence-links`, { method: 'POST', body: JSON.stringify({ summary: 'Seed benchmark stub', relation: 'supports', sensitivity: 'public' }) });
-      await req(app, `/claims/${claimId}/verifications`, { method: 'POST', body: JSON.stringify({ method: 'unit-test', decision: 'partially_accepted', rationale: 'test' }) });
+      await req(app, `/claims/${claimId}/evidence-links`, { method: 'POST', body: JSON.stringify({ id: 'api-evidence', summary: 'Seed benchmark stub', relation: 'supports', sensitivity: 'public' }) });
+      await req(app, `/claims/${claimId}/verifications`, { method: 'POST', body: JSON.stringify({ method: 'unit-test', decision: 'partially_accepted', rationale: 'test', evidenceIds: ['api-evidence'] }) });
       const recomputed = await req(app, '/trust-signals/recompute', { method: 'POST', body: JSON.stringify({ claimId }) });
       expect(recomputed.body.trust.score).toBeGreaterThan(0);
       const events = await req(app, '/events');
