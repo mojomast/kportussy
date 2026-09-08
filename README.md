@@ -111,6 +111,10 @@ src/                      React dashboard consuming the live API with mock fallb
 
 Current status: **tested local MVP slice**.
 
+Performance eligibility now validates baseline-bound, dataset-bound benchmark receipts with recomputed means, explicit metric direction, sample-size requirements and provenance. Below-baseline receipts remain blocking evidence even after accepted review. See [Benchmark receipts v1](docs/BENCHMARK_RECEIPTS.md) and run `node scripts/benchmark-receipt-demo.mjs` for the isolated CLI demonstration. This does not authorize real-data adoption.
+
+The store now enforces evidence-bound verification and bounded lifecycle transitions: a rejected review cannot verify a claim, accepted reviews must name the supporting evidence they cover, and later adverse/unreviewed evidence disputes prior approval. See [Evidence-bound review v1](docs/EVIDENCE_BOUND_REVIEW.md) for the policy, compatibility limits, CLI gate command, and reproducible local example (`node scripts/evidence-review-demo.mjs`). This is not yet a production promotion authority.
+
 The repository now includes a JSON-file persistence layer, HTTP API, dashboard fetch adapter, and CLI capable of creating claims, linking evidence, recording manual/automated verification, computing simple trust projections, and emitting hash-chained audit events. Runtime databases live under `data/*.json` and are ignored so generated artifacts are not committed.
 
 Quick checks:
