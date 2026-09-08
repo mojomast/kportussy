@@ -1,7 +1,4 @@
-import { rmSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { createStore } from './store.mjs';
-const path=resolve(process.cwd(),'data/kportussy-live.json');
-try { rmSync(path); } catch {}
-const store=createStore(path);
-console.log(`seeded ${store.state.claims.length} claims, ${store.state.events.length} events into ${path}`);
+// Initialization is idempotent, never a destructive reset. Honors KPORTUSSY_DB_PATH.
+const store=createStore();
+console.log(`opened ${store.state.claims.length} claims, ${store.state.events.length} events in ${store.path}; existing history preserved`);

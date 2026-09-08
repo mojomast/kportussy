@@ -104,12 +104,14 @@ docs/PRIVACY.md           Privacy, access control, retention, redaction
 schemas/claim.schema.json Draft JSON schema for claims
 examples/                 Example claim packages
 server/                   Tested JSON persistence, HTTP API, and CLI MVP slice
-src/                      React dashboard consuming the live API with mock fallback
+src/                      Local review workbench consuming authoritative API gates
 ```
 
 ## MVP status
 
-Current status: **tested local MVP slice**.
+Current status: **usable local evidence-to-trust MVP, not production authority**.
+
+Run `npm run build` then `npm start` and open http://127.0.0.1:8787. The workbench supports scoped claim creation, evidence/benchmark receipt linkage, explicit evidence-bound review, server gate reasons, lifecycle changes, dispute/revocation and detailed audit visibility. No placeholder evidence or mock fallback is used. See [the operating guide](docs/DASHBOARD.md) for the complete workflow, storage boundaries and required real-data approvals. Run `npm run demo` for the isolated production-HTTP plus CLI end-to-end demonstration.
 
 Performance eligibility now validates baseline-bound, dataset-bound benchmark receipts with recomputed means, explicit metric direction, sample-size requirements and provenance. Below-baseline receipts remain blocking evidence even after accepted review. See [Benchmark receipts v1](docs/BENCHMARK_RECEIPTS.md) and run `node scripts/benchmark-receipt-demo.mjs` for the isolated CLI demonstration. This does not authorize real-data adoption.
 

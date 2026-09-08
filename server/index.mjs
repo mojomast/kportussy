@@ -1,12 +1,6 @@
-import { createServer } from 'node:http';
-import { createApp } from './app.mjs';
-
-const port = Number(process.env.KPORTUSSY_API_PORT || 8787);
-const host = process.env.KPORTUSSY_API_HOST || '127.0.0.1';
-const app = createApp();
-const server = createServer(async (req,res)=>{
-  const response = await app(new Request(`http://${req.headers.host}${req.url}`, { method:req.method, headers:req.headers, body: req.method === 'GET' || req.method === 'HEAD' ? undefined : req }));
-  res.writeHead(response.status, Object.fromEntries(response.headers));
-  res.end(Buffer.from(await response.arrayBuffer()));
-});
-server.listen(port, host, ()=>console.log(`Kportussy API live on http://${host}:${port}`));
+import { createHttpServer } from './http.mjs';
+const port=Number(process.env.KPORTUSSY_API_PORT || 8787);
+const host=process.env.KPORTUSSY_API_HOST || '127.0.0.1';
+if(!['127.0.0.1','::1','localhost'].includes(host)) throw new Error('Local MVP must bind to loopback; authentication is not implemented.');
+const server=createHttpServer();
+server.listen(port,host,()=>console.log(`Kportussy local workbench: http://${host}:${server.address().port}`));

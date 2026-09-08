@@ -8,6 +8,9 @@ export function createApp(store = createStore()){
     const url=new URL(req.url); const path=url.pathname.replace(/^\/api/,'') || '/';
     try{
       if(req.method==='GET' && path==='/health') return json(store.health());
+      if(req.method==='GET' && path==='/audit') return json(store.checkAudit());
+      const gateMatch=path.match(/^\/claims\/([^/]+)\/verification-gate$/);
+      if(req.method==='GET' && gateMatch) return json(store.verificationGate(gateMatch[1],url.searchParams.get('target') || 'verified'));
       if(req.method==='GET' && path==='/dashboard') return json(store.dashboard());
       if(req.method==='GET' && path==='/claims') return json({claims:store.listClaims()});
       if(req.method==='GET' && path==='/events') return json({events:store.events(Number(url.searchParams.get('limit')||100))});

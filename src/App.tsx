@@ -1,115 +1,67 @@
-import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
-import { Activity, AlertTriangle, CheckCircle2, Clock, Cpu, Database, GitBranch, Gauge, HeartPulse, Lock, Network, Plus, Radio, Rocket, ShieldCheck, Sparkles, Wifi, WifiOff } from 'lucide-react';
-import { useDashboardData } from './useDashboardData';
+import { useState, type FormEvent } from 'react';
 import { api } from './api';
-import { antiSlopGate, averageTrustScore, evidenceCount, privacyRiskCount, reviewQueue, statusCounts, verificationCoverage } from './metrics';
-import type { AuditEvent, Claim } from './types';
+import { useDashboardData } from './useDashboardData';
+import type { Claim } from './types';
 import './styles.css';
+import './workbench.css';
 
-const tabs = ['Overview', 'Claims', 'Create', 'Review Queue', 'Evidence Graph', 'Audit Log', 'API Status', 'Roadmap', 'API Contract'] as const;
-type Tab = (typeof tabs)[number];
+const text = (form: FormData, key: string) => String(form.get(key) ?? '').trim();
+const optionalJson = (value: string) => value ? JSON.parse(value) : undefined;
 
-function pct(value: number): string { return `${Math.round(value * 100)}%`; }
-function score(value: number): string { return value.toFixed(2); }
-function ago(iso?: string | null): string { if (!iso) return 'never'; const secs = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 1000)); return secs < 60 ? `${secs}s ago` : `${Math.round(secs / 60)}m ago`; }
-
-function statusClass(status: string): string {
-  if (['verified', 'strong', 'ok'].includes(status)) return 'good';
-  if (['partially_verified', 'moderate', 'under_review', 'submitted', 'in_progress', 'degraded'].includes(status)) return 'warn';
-  if (['disputed', 'revoked', 'rejected', 'expired', 'down'].includes(status)) return 'bad';
-  return 'neutral';
-}
-
-function StatCard({ icon, label, value, sub }: { icon: ReactNode; label: string; value: string; sub: string }) {
-  return <section className="stat-card"><div className="stat-icon">{icon}</div><div><p>{label}</p><strong>{value}</strong><span>{sub}</span></div></section>;
-}
-
-function TrustBar({ label, value }: { label: string; value: number }) {
-  return <div className="trust-bar"><span>{label}</span><div><i style={{ width: `${Math.round(value * 100)}%` }} /></div><b>{pct(value)}</b></div>;
-}
-
-function LiveStatusStrip({ mode, error, paused, setPaused, refresh, lastUpdatedAt, health }: ReturnType<typeof useDashboardData>) {
-  const live = mode === 'live' && !error;
-  return <div className="live-strip">
-    <span className={`pill ${live ? 'good' : error ? 'bad' : 'neutral'}`}>{live ? <Wifi size={13}/> : <WifiOff size={13}/>} {mode}</span>
-    <span>API: <b>{health?.status ?? (error ? 'offline' : 'checking')}</b></span>
-    <span>last sync: <b>{ago(lastUpdatedAt)}</b></span>
-    <span>events: <b>{health?.events ?? 'mock'}</b></span>
-    {error && <span className="strip-error">{error}</span>}
-    <button onClick={() => setPaused(!paused)}>{paused ? 'Resume' : 'Pause'}</button>
-    <button onClick={() => void refresh()}>Refresh now</button>
-  </div>;
-}
-
-function ClaimCard({ claim, onChanged }: { claim: Claim; onChanged: () => void }) {
-  const gate = antiSlopGate(claim);
-  async function mutate(action: 'recompute' | 'review' | 'evidence' | 'verify') {
-    if (action === 'recompute') await api.recomputeTrust(claim.id);
-    if (action === 'review') await api.updateStatus(claim.id, 'under_review');
-    if (action === 'evidence') await api.addEvidence(claim.id, { type: 'operator_note', relation: 'contextualizes', summary: `Dashboard brrrr operator note added at ${new Date().toISOString()}`, sourceRef: 'dashboard:quick-add', sensitivity: 'internal' });
-    if (action === 'verify') await api.addVerification(claim.id, { method: 'dashboard-review', decision: claim.risk === 'high' ? 'inconclusive' : 'partially_accepted', confidence: 'medium', rationale: 'Quick dashboard review; high-risk claims still require governance.' });
-    onChanged();
+function ClaimWorkspace({ claim, run }: {claim: Claim; run: (work: () => Promise<unknown>) => Promise<void>}) {
+  function evidence(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); const node=event.currentTarget; const form=new FormData(node);
+    void run(async () => { await api.addEvidence(claim.id, {type:text(form,'type'),relation:text(form,'relation'),summary:text(form,'summary'),sourceRef:text(form,'sourceRef'),sensitivity:text(form,'sensitivity'),benchmarkReceipt:optionalJson(text(form,'receipt'))}); node.reset(); });
   }
-  return <article className="claim-card">
-    <header>
-      <div>
-        <span className="eyebrow">{claim.subject.type} / {claim.domain}</span>
-        <h3>{claim.subject.name}</h3>
-      </div>
-      <span className={`pill ${statusClass(claim.status)}`}>{claim.status}</span>
-    </header>
-    <p className="statement">{claim.statement}</p>
-    <div className="meta-row">
-      <span>risk: <b>{claim.risk}</b></span><span>evidence: <b>{claim.evidence.length}</b></span><span>verifications: <b>{claim.verifications.length}</b></span><span>trust: <b>{score(claim.trust.score)}</b></span>
-    </div>
-    <div className="component-grid">
-      <TrustBar label="evidence" value={claim.trust.components.evidenceStrength} />
-      <TrustBar label="verification" value={claim.trust.components.verificationStrength} />
-      <TrustBar label="benchmark" value={claim.trust.components.benchmarkQuality} />
-      <TrustBar label="governance" value={claim.trust.components.governanceStatus} />
-      <TrustBar label="provenance" value={claim.trust.components.provenanceQuality} />
-      <TrustBar label="recency" value={claim.trust.components.recency} />
-    </div>
-    <div className="next-action"><Rocket size={16} /> {claim.nextAction}</div>
-    <div className={gate.pass ? 'gate pass' : 'gate fail'}>{gate.pass ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}{gate.pass ? 'Anti-slop gate pass' : `Gate blocked: ${gate.reasons.join('; ')}`}</div>
-    <div className="action-row"><button onClick={() => void mutate('evidence')}>+ Evidence</button><button onClick={() => void mutate('verify')}>+ Verification</button><button onClick={() => void mutate('review')}>Start review</button><button onClick={() => void mutate('recompute')}>Recompute</button></div>
+  function review(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); const node=event.currentTarget; const form=new FormData(node);
+    void run(async () => { await api.addVerification(claim.id,{decision:text(form,'decision'),confidence:text(form,'confidence'),verifier:text(form,'verifier'),method:'local-human-review',rationale:text(form,'rationale'),evidenceIds:form.getAll('evidenceIds')}); node.reset(); });
+  }
+  return <article className="panel-stack">
+    <section className="glass"><h2>{claim.subject.name || claim.subject.id}</h2><code>{claim.id}</code><p>{claim.statement}</p><p>Recorded status: <b>{claim.status}</b> · Risk: {claim.risk} · Heuristic score: {claim.trust.score} (not authority)</p>
+      {claim.legacyStatusWarning && <p role="alert">Legacy status is not supported by current policy. Positive trust is withheld; explicit re-review/migration is required.</p>}
+      <p>Intended use (not granted): {claim.trustApplication}</p>
+      {(['verified','partially_verified'] as const).map(target => <div className="gate" key={target}><b>{target} eligibility: {claim.gates?.[target].pass ? 'eligible' : 'blocked'}</b><p>{claim.gates?.[target].reasons.join('; ') || (claim.gates ? 'Evidence policy satisfied; lifecycle still applies. Not independent approval.' : 'Server policy unavailable.')}</p><small>{claim.gates?.[target].policyVersion}</small></div>)}
+      <div className="action-row">{claim.allowedTransitions?.map(status => <button key={status} disabled={(status==='verified' || status==='partially_verified') && !claim.gates?.[status].pass} onClick={() => void run(() => api.updateStatus(claim.id,status))}>Set {status}</button>)}</div>
+      {claim.allowedTransitions?.length===0 && <p>Terminal status: history retained, no outgoing transition.</p>}
+    </section>
+    <section className="glass"><h2>Evidence and benchmark receipts</h2><p>Review original material locally. Restricted references and raw receipts are not exposed here. Summaries must be safe to display. Receipt hashes establish consistency, not truthful execution.</p>
+      {claim.benchmarkSpec && <details><summary>Pinned benchmark contract</summary><pre>{JSON.stringify(claim.benchmarkSpec,null,2)}</pre></details>}
+      {claim.evidence.length===0 && <p>No evidence linked. No starter stubs are created.</p>}
+      {claim.evidence.map(e => <div className="record" key={e.id}><b>{e.id} · {e.relation} · {e.type}</b><p>{e.summary}</p><small>{e.sensitivity} · {e.sourceRef}</small></div>)}
+      {claim.benchmarks?.map(b => <div className="record" key={b.evidenceId}><b>Receipt {b.evidenceId}: {b.pass ? 'passes comparison' : 'blocked'}</b><p>{b.reasons.join('; ')}</p><code>{b.sha256}</code></div>)}
+      <form onSubmit={evidence}><h3>Link evidence</h3><label>Evidence type<select name="type"><option>document</option><option>benchmark_result</option><option>test_report</option></select></label><label>Relation<select name="relation"><option>supports</option><option>contextualizes</option><option>contradicts</option><option>invalidates</option><option>supersedes</option></select></label><label>Evidence summary<textarea name="summary" required/></label><label>Source reference<input name="sourceRef" required/></label><label>Sensitivity<select name="sensitivity" defaultValue="restricted"><option>restricted</option><option>sealed</option><option>internal</option><option>public</option></select></label><label>Benchmark receipt JSON (required for benchmark_result)<textarea name="receipt" placeholder='{"artifact":{...},"sha256":"..."}'/></label><button>Link evidence</button></form>
+    </section>
+    <section className="glass"><h2>Evidence-bound review</h2><p>The latest review governs eligibility. Select the evidence you actually reviewed; all supporting evidence must be covered. Adverse evidence cannot be voted away.</p>
+      {claim.verifications.map(v => <div className="record" key={v.id}><b>{v.decision} · {v.verifier} · {v.confidence}</b><p>{v.rationale}</p><small>{v.createdAt} · Evidence: {v.evidenceIds?.join(', ') || 'unbound legacy review'}</small></div>)}
+      <form onSubmit={review}><label>Reviewer label (not authenticated)<input name="verifier" required/></label><label>Decision<select name="decision" defaultValue="inconclusive"><option>inconclusive</option><option>accepted</option><option>partially_accepted</option><option>rejected</option><option>disputed</option></select></label><label>Confidence<select name="confidence" defaultValue="medium"><option>low</option><option>medium</option><option>high</option></select></label><label>Review rationale<textarea name="rationale" required/></label><fieldset><legend>Evidence reviewed</legend>{claim.evidence.map(e => <label className="check" key={e.id}><input type="checkbox" name="evidenceIds" value={e.id}/>{e.id} — {e.relation}: {e.summary}</label>)}</fieldset><button>Record review</button></form>
+    </section>
   </article>;
 }
 
-function Overview({ claims }: { claims: Claim[] }) {
-  const counts = statusCounts(claims); const avg = averageTrustScore(claims); const coverage = verificationCoverage(claims); const queue = reviewQueue(claims);
-  return <div className="panel-stack">
-    <section className="hero"><div><p className="eyebrow"><Sparkles size={16}/> Evidence before influence</p><h1>Kportussy Trust Control</h1><p>Live claim → evidence → verification → trust application → audit. Operator cockpit for making Ussyverse promotion gates go brrrr without slop.</p></div><div className="hero-badge"><Gauge size={32}/><strong>{score(avg)}</strong><span>avg trust</span></div></section>
-    <div className="stats-grid"><StatCard icon={<Database />} label="Claims tracked" value={String(claims.length)} sub={`${counts.under_review + counts.submitted} active review`} /><StatCard icon={<GitBranch />} label="Evidence links" value={String(evidenceCount(claims))} sub="supports/context/benchmarks" /><StatCard icon={<ShieldCheck />} label="Verification coverage" value={pct(coverage)} sub="claims with review records" /><StatCard icon={<Lock />} label="Privacy-sensitive evidence" value={String(privacyRiskCount(claims))} sub="restricted or sealed refs" /></div>
-    <section className="grid-2"><div className="glass"><h2>Pipeline health</h2>{Object.entries(counts).filter(([,v])=>v>0).map(([k,v])=><div className="status-line" key={k}><span className={`dot ${statusClass(k)}`}/><span>{k}</span><b>{v}</b></div>)}</div><div className="glass"><h2>Brrrr queue</h2>{queue.map((claim)=><div className="queue-row" key={claim.id}><span className={`pill ${statusClass(claim.status)}`}>{claim.status}</span><div><b>{claim.subject.name}</b><small>{antiSlopGate(claim).pass ? 'READY-ish: evidence gates okay' : antiSlopGate(claim).reasons.join('; ')}</small></div></div>)}</div></section>
-  </div>;
-}
-
-function CreatePanel({ onChanged }: { onChanged: () => void }) {
-  const [busy, setBusy] = useState(false); const [message, setMessage] = useState('');
-  async function submit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault(); setBusy(true); setMessage('');
-    const form = new FormData(e.currentTarget);
-    try {
-      const claim = await api.createClaim({ subject: { id: String(form.get('subjectId')), name: String(form.get('subjectName')), type: 'tool', namespace: 'kportussy' }, domain: String(form.get('domain')), type: 'capability', statement: String(form.get('statement')), risk: String(form.get('risk')) as Claim['risk'], nextAction: 'Attach evidence, submit, verify, recompute.', trustApplication: String(form.get('trustApplication')), tags: ['dashboard-created'] } as Partial<Claim>);
-      await api.addEvidence(claim.id, { type: 'dashboard_intake', relation: 'supports', summary: 'Initial evidence stub created from dashboard intake. Replace with benchmark/audit/provenance evidence.', sourceRef: 'dashboard:create', sensitivity: 'internal' });
-      setMessage(`created ${claim.id} and attached initial evidence`); onChanged(); e.currentTarget.reset();
-    } catch (err) { setMessage(err instanceof Error ? err.message : String(err)); } finally { setBusy(false); }
-  }
-  return <section className="glass create-panel"><h2><Plus/> Create live claim</h2><p className="muted">This writes to the persistent Kportussy API store and emits audit events. No more mock-only vibes.</p><form onSubmit={(e)=>void submit(e)}><label>Subject ID<input name="subjectId" defaultValue="new-tool" required/></label><label>Subject name<input name="subjectName" defaultValue="New Ussyverse Tool" required/></label><label>Domain<input name="domain" defaultValue="tool-novelty" required/></label><label>Risk<select name="risk" defaultValue="medium"><option>low</option><option>medium</option><option>high</option></select></label><label>Statement<textarea name="statement" defaultValue="This tool deserves trust only after evidence, verification, and benchmark-backed utility." required/></label><label>Trust application<input name="trustApplication" defaultValue="Gate dashboard promotion until evidence passes." required/></label><button disabled={busy}>{busy ? 'Creating…' : 'Create claim + starter evidence'}</button></form>{message && <div className="next-action"><HeartPulse size={16}/>{message}</div>}</section>;
-}
-
-function ClaimsPanel({ claims, refresh }: { claims: Claim[]; refresh: () => void }) { return <div className="claim-grid">{claims.map((claim) => <ClaimCard key={claim.id} claim={claim} onChanged={refresh} />)}</div>; }
-function ReviewPanel({ claims, refresh }: { claims: Claim[]; refresh: () => void }) { return <div className="panel-stack"><section className="glass"><h2>Review queue</h2><p className="muted">Live high-risk/submitted/under-review/disputed claims. Quick actions write audit events.</p></section>{reviewQueue(claims).map((claim)=><ClaimCard key={claim.id} claim={claim} onChanged={refresh}/>)}</div>; }
-function EvidenceGraph({ claims }: { claims: Claim[] }) { return <div className="graph-wrap">{claims.map((claim) => <section className="graph-claim" key={claim.id}><div className="node claim-node"><Network size={18}/><b>{claim.subject.name}</b><span>{claim.domain}</span></div><div className="edges">{claim.evidence.map((evidence) => <div className="edge" key={evidence.id}><i/><div className={`node evidence-node ${evidence.sensitivity}`}><span>{evidence.type} · {evidence.sensitivity}</span><b>{evidence.relation}</b><small>{evidence.summary}</small><small>{evidence.sourceRef}</small></div></div>)}</div></section>)}</div>; }
-function AuditPanel({ events }: { events: AuditEvent[] }) { return <section className="glass"><h2>Audit log</h2><p className="muted">Append-only trust-affecting event stream.</p><div className="audit-list">{events.map((event)=><div className="audit-row" key={event.id}><span className={`pill ${statusClass(event.type.includes('created')?'ok':'neutral')}`}>{event.type}</span><b>{ago(event.occurredAt)}</b><code>{JSON.stringify(event.subjectRefs)}</code><small>{event.eventHash?.slice(0,16)}</small></div>)}</div></section>; }
-function ApiStatusPanel({ health, error }: Pick<ReturnType<typeof useDashboardData>, 'health' | 'error'>) { const endpoints=['GET /api/health','GET /api/dashboard','GET /api/claims','GET /api/events','POST /api/claims','POST /api/claims/{id}/evidence-links','POST /api/claims/{id}/verifications','POST /api/trust-signals/recompute']; return <section className="glass api-panel"><h2><Radio/> API Status</h2><div className="stats-grid mini"><StatCard icon={<Activity/>} label="Backend" value={health?.status ?? 'offline'} sub={error ?? health?.version ?? 'checking'} /><StatCard icon={<Database/>} label="Store" value={health?.database ?? 'unknown'} sub={`${health?.claims ?? 0} claims`} /><StatCard icon={<Clock/>} label="Events" value={String(health?.events ?? 0)} sub="append-only-ish JSON event log" /></div><div className="endpoint-grid">{endpoints.map(e=><code key={e}>{e}</code>)}</div></section>; }
-function RoadmapPanel({ roadmap }: Pick<ReturnType<typeof useDashboardData>, 'roadmap'>) { return <div className="roadmap">{(['30d','60d','90d'] as const).map((horizon)=><section className="glass" key={horizon}><h2>{horizon}</h2>{roadmap.filter((m)=>m.horizon===horizon).map((m)=><div className="milestone" key={m.id}><span className={`pill ${m.status === 'done' ? 'good' : m.status === 'in_progress' ? 'warn' : 'neutral'}`}>{m.status}</span><b>{m.title}</b><p>{m.acceptance}</p></div>)}</section>)}</div>; }
-function ApiPanel() { const endpoints = ['GET /api/health','GET /api/dashboard','GET /api/claims','POST /api/claims','GET /api/events','POST /api/claims/{id}/status','POST /api/claims/{id}/evidence-links','POST /api/claims/{id}/verifications','POST /api/trust-signals/recompute']; return <section className="glass api-panel"><h2>Initial API contract</h2><p className="muted">Implemented MVP endpoints are live; broader spec endpoints remain roadmap.</p><div className="endpoint-grid">{endpoints.map((e)=><code key={e}>{e}</code>)}</div></section>; }
-
 export default function App() {
-  const data = useDashboardData(4000);
-  const [active, setActive] = useState<Tab>('Overview');
-  const content = useMemo(() => ({ Overview: <Overview claims={data.claims} />, Claims: <ClaimsPanel claims={data.claims} refresh={data.refresh} />, Create: <CreatePanel onChanged={data.refresh}/>, 'Review Queue': <ReviewPanel claims={data.claims} refresh={data.refresh} />, 'Evidence Graph': <EvidenceGraph claims={data.claims} />, 'Audit Log': <AuditPanel events={data.events} />, 'API Status': <ApiStatusPanel health={data.health} error={data.error} />, Roadmap: <RoadmapPanel roadmap={data.roadmap} />, 'API Contract': <ApiPanel /> })[active], [active, data]);
-  return <main><aside className="sidebar"><div className="brand"><Cpu/><div><b>Kportussy</b><span>live trust brrrr</span></div></div><nav>{tabs.map((tab)=><button className={active===tab?'active':''} onClick={()=>setActive(tab)} key={tab}>{tab}</button>)}</nav><footer><Activity size={16}/> {data.mode} dashboard</footer></aside><section className="content"><LiveStatusStrip {...data}/>{data.loading ? <section className="glass"><h2>Loading live trust substrate…</h2></section> : content}</section></main>;
+  const data=useDashboardData(5000);
+  const [selected,setSelected]=useState(''); const [tab,setTab]=useState('Claims');
+  const [busy,setBusy]=useState(false); const [message,setMessage]=useState('');
+  const claim=data.claims.find(c=>c.id===selected);
+  async function run(work: () => Promise<unknown>) {
+    if(busy || data.error || data.loading) return;
+    setBusy(true); setMessage('');
+    try { await work(); setMessage('Saved locally.'); await data.refresh(); }
+    catch(error) { setMessage(error instanceof Error ? error.message : String(error)); }
+    finally { setBusy(false); }
+  }
+  function create(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); const node=event.currentTarget; const form=new FormData(node);
+    void run(async () => { const created=await api.createClaim({id:text(form,'id') || undefined,subject:{id:text(form,'subject'),name:text(form,'subject'),type:'tool',namespace:'local'},domain:text(form,'domain'),statement:text(form,'statement'),type:text(form,'type'),risk:text(form,'risk') as Claim['risk'],trustApplication:text(form,'use'),benchmarkSpec:optionalJson(text(form,'spec'))}); setSelected(created.id); setTab('Claims'); node.reset(); });
+  }
+  return <main><aside className="sidebar"><h1>Kportussy</h1><p>Evidence before influence</p><nav>{['Claims','Create','Audit'].map(t=><button key={t} className={tab===t?'active':''} onClick={()=>setTab(t)}>{t}</button>)}</nav><p>Local, single-operator prototype</p></aside><section className="content">
+    <header className="glass"><h1>Evidence-to-trust workbench</h1><p>No promotion from scores alone. Local eligibility is not permission for routing, deployment, or real-data adoption. Independent policy, provenance and data-owner approval remain required. High-risk governance is blocked.</p><p>{data.error ? 'OFFLINE / STALE — writes disabled' : data.loading ? 'Connecting…' : 'Connected to local store'} · Last sync: {data.lastUpdatedAt || 'never'}</p>{data.error && <p role="alert">{data.error}</p>}<button onClick={()=>void data.refresh()}>Refresh</button><button onClick={()=>data.setPaused(!data.paused)}>{data.paused?'Resume polling':'Pause polling'}</button></header>
+    {message && <p role="status">{message}</p>}
+    <fieldset className="workspace" disabled={busy || !!data.error || data.loading}>
+      {tab==='Create' && <section className="glass"><h2>Create claim</h2><form onSubmit={create}><label>Claim ID (optional; pin before producing receipts)<input name="id" pattern="[A-Za-z0-9_-]+"/></label><label>Subject<input name="subject" required/></label><label>Domain<input name="domain" required/></label><label>Claim type<select name="type"><option>capability</option><option>performance</option><option>quality</option><option>release_readiness</option><option>provenance</option><option>compliance</option><option>identity</option><option>novelty</option></select></label><label>Risk<select name="risk" defaultValue="medium"><option>low</option><option>medium</option><option>high</option></select></label><label>Scoped statement<textarea name="statement" required/></label><label>Intended trust application<input name="use" required/></label><label>Benchmark contract JSON (pin at creation for performance claims)<textarea name="spec" placeholder='See docs/BENCHMARK_RECEIPTS.md for the exact contract.'/></label><button>Create claim</button></form></section>}
+      {tab==='Claims' && <><section className="glass"><h2>Claims</h2><label>Select claim<select value={selected} onChange={e=>setSelected(e.target.value)}><option value="">Choose a claim</option>{data.claims.map(c=><option value={c.id} key={c.id}>{c.id} — {c.status}</option>)}</select></label><p>{data.claims.length} records. New databases include labeled example records; these are not adoption evidence.</p></section>{claim && <ClaimWorkspace key={claim.id} claim={claim} run={run}/>}</>}
+    </fieldset>
+    {tab==='Audit' && <section className="glass"><h2>Audit visibility</h2><p>Chain: {data.audit?.valid ? 'consistent' : 'unavailable'} · Total events: {data.audit?.eventCount ?? 'unknown'}</p><code>{data.audit?.head}</code><p>{data.audit?.limitation}</p><p>Showing latest 50 events. Full chain is validated; use the private database for complete history. No delete or overwrite action is exposed.</p>{data.events.slice().reverse().map(e=><details key={e.id}><summary>{e.occurredAt} · {e.type} · {String(e.subjectRefs.claim_id ?? '')}</summary><pre>{JSON.stringify(e,null,2)}</pre></details>)}</section>}
+  </section></main>;
 }

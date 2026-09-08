@@ -1,9 +1,9 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, renameSync, writeFileSync, openSync, closeSync, unlinkSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { seedClaims, seedRoadmap } from './seed-data.mjs';
 import { dashboardMetrics } from './metrics.mjs';
-import { requireTerm, requireTransition, verificationGate } from './verification-policy.mjs';
+import { allowedTransitions, requireTerm, requireTransition, verificationGate } from './verification-policy.mjs';
 import { redactClaim } from './privacy.mjs';
 import { validBenchmarkSpec, validateBenchmarkReceipt } from './benchmark-receipt.mjs';
 
@@ -11,30 +11,83 @@ const now = () => new Date().toISOString();
 const defaultPath = resolve(process.cwd(), 'data/kportussy-live.json');
 function id(prefix){ return `${prefix}-${randomUUID().slice(0,8)}`; }
 function clone(x){ return JSON.parse(JSON.stringify(x)); }
+function requiredText(value,label){ if(typeof value!=='string' || !value.trim() || value.length>10000) throw new Error(`${label} must be nonblank text (max 10000)`); }
+function optionalId(value){ if(value!==undefined && (typeof value!=='string' || !/^[A-Za-z0-9_-]{1,128}$/.test(value))) throw new Error('invalid id: use letters, digits, underscore or hyphen (max 128)'); }
 function eventHash(evt, prev){ return createHash('sha256').update(JSON.stringify({...evt, previousHash:prev ?? null})).digest('hex'); }
 
 export class KportussyStore {
-  constructor(path = process.env.KPORTUSSY_DB_PATH || defaultPath){ this.path=path; this.state=this.load(); }
+  constructor(path = process.env.KPORTUSSY_DB_PATH || defaultPath){
+    this.path=path; this.state=this.load();
+    for(const name of ['createClaim','updateStatus','addEvidence','addVerification','recomputeTrust']) {
+      const mutate=this[name].bind(this);
+      this[name]=(...args)=>{
+        const snapshot=clone(this.state); let lock;
+        try {
+          lock=openSync(`${this.path}.lock`,'wx',0o600);
+          if(readFileSync(this.path,'utf8')!==this.diskBytes) throw new Error('store changed on disk; restart or reopen before writing');
+          this.inTransaction=true;
+          const result=mutate(...args);
+          this.diskBytes=this.saveState(this.state); return result;
+        } catch(error) { this.state=snapshot; throw error; }
+        finally { this.inTransaction=false; if(lock!==undefined) {closeSync(lock);unlinkSync(`${this.path}.lock`);} }
+      };
+    }
+  }
   load(){
-    try { return JSON.parse(readFileSync(this.path,'utf8')); }
-    catch { return this.seedState(); }
+    let bytes;
+    try { bytes=readFileSync(this.path,'utf8'); }
+    catch(error) { if(error.code==='ENOENT') return this.seedState(); throw error; }
+    const state=JSON.parse(bytes);
+    if(state?.version!==1 || !Array.isArray(state.claims) || !Array.isArray(state.events) || !Array.isArray(state.roadmap)) throw new Error('invalid store shape; refusing to reseed');
+    for(const c of state.claims) {
+      if(!c?.id || !c.subject?.id || !Array.isArray(c.evidence) || !Array.isArray(c.verifications) || !c.trust?.components) throw new Error('invalid stored claim');
+      requireTerm('status',c.status);
+    }
+    if(new Set(state.claims.map(c=>c.id)).size!==state.claims.length) throw new Error('duplicate stored claim');
+    this.checkAudit(state);
+    this.diskBytes=bytes;
+    return state;
+  }
+  checkAudit(state=this.state){
+    let previousHash;
+    for(const {eventHash:hash,...event} of state.events){
+      if(event.previousHash!==previousHash || hash!==eventHash(event,previousHash)) throw new Error('audit chain invalid');
+      previousHash=hash;
+    }
+    return {valid:true,eventCount:state.events.length,head:previousHash ?? null,limitation:'Hash consistency only; not signed attestation or state replay.'};
+  }
+  project(c){
+    const projected=clone(c); this.recomputeTrustFor(projected,false);
+    const gates={verified:verificationGate(c,'verified'),partially_verified:verificationGate(c,'partially_verified')};
+    return {...redactClaim(projected),gates,allowedTransitions:allowedTransitions(c.status),
+      legacyStatusWarning:['verified','partially_verified'].includes(c.status) && !gates[c.status].pass,
+      benchmarks:c.evidence.filter(e=>e.benchmarkReceipt || e.type==='benchmark_result').map(e=>{ const {valid,pass,reasons,sha256}=validateBenchmarkReceipt(e.benchmarkReceipt,c); return {evidenceId:e.id,valid,pass,reasons,sha256}; })};
   }
   seedState(){
     const s={ version:1, createdAt:now(), claims: clone(seedClaims), roadmap: clone(seedRoadmap), events: [] };
     for(const c of s.claims) this.appendEventTo(s,'claim.seeded','seed',{claim_id:c.id,subject_id:c.subject.id},{status:c.status});
-    this.saveState(s); return s;
+    this.diskBytes=JSON.stringify(s,null,2);
+    mkdirSync(dirname(this.path),{recursive:true}); writeFileSync(this.path,this.diskBytes,{flag:'wx',mode:0o600}); return s;
   }
-  save(){ this.saveState(this.state); }
-  saveState(s){ mkdirSync(dirname(this.path),{recursive:true}); const tmp=`${this.path}.tmp`; writeFileSync(tmp, JSON.stringify(s,null,2)); renameSync(tmp,this.path); }
+  save(){ if(!this.inTransaction) this.diskBytes=this.saveState(this.state); }
+  saveState(s){
+    mkdirSync(dirname(this.path),{recursive:true}); const tmp=`${this.path}.${randomUUID()}.tmp`,bytes=JSON.stringify(s,null,2);
+    try {writeFileSync(tmp,bytes,{flag:'wx',mode:0o600});renameSync(tmp,this.path);return bytes;}
+    finally {try {unlinkSync(tmp);} catch(error) {if(error.code!=='ENOENT') throw error;}}
+  }
   appendEventTo(s,type,actorId,subjectRefs={},payload={}){ const prev=s.events.at(-1)?.eventHash; const evt={id:id('evt'),type,actorId,occurredAt:now(),subjectRefs,payload,previousHash:prev}; evt.eventHash=eventHash(evt,prev); s.events.push(evt); return evt; }
   event(type,actorId='dashboard',subjectRefs={},payload={}){ const evt=this.appendEventTo(this.state,type,actorId,subjectRefs,payload); this.save(); return evt; }
-  dashboard(){ const claims=this.state.claims.map(redactClaim); return { mode:'live', claims, roadmap:this.state.roadmap, metrics:dashboardMetrics(claims), events:this.state.events.slice(-50), generatedAt:now() }; }
+  dashboard(){ const claims=this.listClaims(); return { mode:'live', claims, roadmap:this.state.roadmap, metrics:dashboardMetrics(claims), events:this.state.events.slice(-50), audit:this.checkAudit(), generatedAt:now() }; }
   health(){ return { status:'ok', service:'kportussy-api', version:'0.2.0-live-brrrr', database:'json-file', path:this.path, claims:this.state.claims.length, events:this.state.events.length, now:now() }; }
-  listClaims(){ return this.state.claims.map(redactClaim); }
-  getClaim(claimId){ const c=this.state.claims.find(c=>c.id===claimId); return c ? redactClaim(c) : null; }
+  listClaims(){ return this.state.claims.map(c=>this.project(c)); }
+  getClaim(claimId){ const c=this.state.claims.find(c=>c.id===claimId); return c ? this.project(c) : null; }
   events(limit=100){ return this.state.events.slice(-Math.min(limit,500)).reverse(); }
   createClaim(input){
     if(!input?.subject?.id || !input?.statement || !input?.domain) throw new Error('subject.id, statement, and domain are required');
+    requiredText(input.subject.id,'subject.id'); requiredText(input.statement,'statement'); requiredText(input.domain,'domain'); optionalId(input.id);
+    for(const field of ['name','type','namespace']) if(input.subject[field]!==undefined) requiredText(input.subject[field],`subject.${field}`);
+    for(const field of ['nextAction','trustApplication','actorId']) if(input[field]!==undefined) requiredText(input[field],field);
+    if(input.tags!==undefined && (!Array.isArray(input.tags) || input.tags.some(t=>typeof t!=='string'))) throw new Error('tags must be text array');
     if(input.benchmarkSpec !== undefined && !validBenchmarkSpec(input.benchmarkSpec)) throw new Error('invalid benchmarkSpec');
     requireTerm('risk', input.risk ?? 'medium');
     requireTerm('claimType', input.type ?? 'capability');
@@ -53,8 +106,10 @@ export class KportussyStore {
   }
   addEvidence(claimId,input){
     const c=this.state.claims.find(c=>c.id===claimId); if(!c) throw new Error('claim not found');
+    optionalId(input?.id);
     const ev={ id:input.id || id('ev'), type:input.type || input.evidence_type || 'document', relation:input.relation ?? 'supports', summary:input.summary, sourceRef:input.sourceRef || input.source_ref || 'dashboard', sensitivity:input.sensitivity || 'restricted', freshnessDays:input.freshnessDays ?? 0, contentHash:input.contentHash };
-    if(!ev.summary) throw new Error('evidence summary is required');
+    requiredText(ev.summary,'evidence summary'); requiredText(ev.sourceRef,'sourceRef'); requiredText(ev.type,'evidence type');
+    if(!['public','internal','restricted','sealed'].includes(ev.sensitivity)) throw new Error('invalid sensitivity');
     requireTerm('relation',ev.relation);
     if(c.evidence.some(e=>e.id===ev.id)) throw new Error('duplicate evidence id');
     let benchmark;
@@ -67,8 +122,10 @@ export class KportussyStore {
   }
   addVerification(claimId,input){
     const c=this.state.claims.find(c=>c.id===claimId); if(!c) throw new Error('claim not found');
+    optionalId(input?.id);
     const ver={ id:input.id || id('ver'), method:input.method || 'manual-review', verifier:input.verifier || input.verifier_id || 'dashboard-reviewer', decision:input.decision ?? 'inconclusive', confidence:input.confidence ?? 'medium', rationale:input.rationale, evidenceIds:input.evidenceIds ?? [], createdAt:now() };
     requireTerm('decision',ver.decision); requireTerm('confidence',ver.confidence);
+    requiredText(ver.verifier,'verifier'); requiredText(ver.method,'method');
     if(typeof ver.rationale!=='string' || !ver.rationale.trim()) throw new Error('verification rationale is required');
     if(!Array.isArray(ver.evidenceIds) || ver.evidenceIds.some(ref=>typeof ref!=='string' || !c.evidence.some(e=>e.id===ref))) throw new Error('evidenceIds must reference evidence linked to this claim');
     if(new Set(ver.evidenceIds).size!==ver.evidenceIds.length) throw new Error('duplicate review evidence id');
@@ -102,7 +159,7 @@ export class KportussyStore {
     let score=0.25*evidenceStrength+0.2*verificationStrength+0.15*provenanceQuality+0.15*benchmarkQuality+0.1*recency+0.15*governanceStatus-contradictionPenalty;
     score=Math.max(0,Math.min(1,score));
     let state= score>=0.75?'strong':score>=0.5?'moderate':score>=0.25?'weak':'unverified';
-    const gate=verificationGate(c,'partially_verified');
+    const gate=verificationGate(c,c.status==='verified'?'verified':'partially_verified');
     const withheld=!gate.pass || ['rejected','revoked','expired','superseded','disputed'].includes(c.status);
     if(withheld){ score=0; state='unverified'; }
     if(contradictionPenalty) state='disputed'; if(['revoked','expired','disputed'].includes(c.status)) state=c.status;

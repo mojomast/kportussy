@@ -1,5 +1,7 @@
 # Privacy and Governance Model
 
+This is the target governance model, not a list of completed guarantees. The [local MVP](DASHBOARD.md) is unauthenticated and loopback-only; it redacts restricted references and raw receipt contents, but does not implement access grants or audit direct file reads. Displayable summaries, labels and rationales must contain no secrets. Do not expose this prototype or adopt real data without explicit independent approval.
+
 ## Defaults
 
 - Raw evidence is restricted by default.

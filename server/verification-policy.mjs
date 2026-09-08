@@ -24,6 +24,8 @@ export function requireTerm(kind, value) {
   if (!VOCABULARY[kind].includes(value)) throw new Error(`invalid ${kind}: expected ${VOCABULARY[kind].join(' | ')}`);
 }
 
+export function allowedTransitions(from) { return [...(transitions[from] ?? [])]; }
+
 export function requireTransition(from, to) {
   requireTerm('status', to);
   if (!transitions[from]?.includes(to)) throw new Error(`invalid claim transition: ${from} -> ${to}`);

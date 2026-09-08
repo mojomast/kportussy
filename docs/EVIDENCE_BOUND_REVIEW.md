@@ -2,6 +2,8 @@
 
 This document preserves the original v1 design. The current store uses `evidence-bound-review-v2`, extending the benchmark placeholder with [Benchmark receipts v1](BENCHMARK_RECEIPTS.md). All other lifecycle/review constraints below remain in force; the v1 benchmark reason code and next-step statement are historical.
 
+The subsequent [local MVP](DASHBOARD.md) adds the workbench, authoritative read projections, fail-closed loading and atomic mutation commits. Its storage/projection guarantees supersede the historical limitations below. Legacy statuses are still not automatically migrated; unsupported positive projections are now withheld on reads too.
+
 ## Selected pre-MVP slice
 
 The original store's verified gate counted evidence and verification records. A rejected or inconclusive review counted just like an accepted review, and reviews discarded evidence references. Status updates also accepted arbitrary strings and lifecycle shortcuts. This contradicted SPEC sections 9–10, ROADMAP M3/M5, and EVALUATION Gate 2.

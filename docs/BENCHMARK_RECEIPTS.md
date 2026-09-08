@@ -2,6 +2,8 @@
 
 This extends evidence-bound review to `evidence-bound-review-v2`. It is a local eligibility check, not production promotion authority. No dashboard, live service/configuration, or external integration is changed.
 
+Historical slice note: the subsequent [local MVP](DASHBOARD.md) integrates these receipts into the workbench and strengthens loading, read projections and mutation commits. Its operating/storage guidance supersedes the loader/transaction limitations below; benchmark policy and independent adoption restrictions remain unchanged.
+
 ## Exact chosen behavior
 
 A claim can declare `benchmarkSpec` at creation. There is no update endpoint for that contract. It pins one metric, unit, direction, minimum sample count, baseline digest and dataset digest. A missing contract is permitted for legacy compatibility, but performance claims cannot qualify without it. A provided malformed contract is rejected before mutation.
